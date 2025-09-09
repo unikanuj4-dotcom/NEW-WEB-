@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="hi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>RGB Background Changer</title>
+  <style>
+    :root {
+      --ui-bg: rgba(255,255,255,0.85);
+      --glass: rgba(255,255,255,0.12);
+      --radius: 14px;
+    }
+
+    html,body {
+      height: 100%;
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .app {
+      min-height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s linear;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+
+    .card {
+      background: var(--glass);
+      backdrop-filter: blur(8px) saturate(120%);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+      color: #0b1220;
+      max-width: 520px;
+      width: 100%;
+      text-align: center;
+    }
+
+    h1 {
+      margin: 0 0 10px 0;
+      font-size: 20px;
+    }
+
+    p.small {
+      margin: 0 0 16px 0;
+      color: rgba(11,18,32,0.7);
+      font-size: 13px;
+    }
+
+    .controls {
+      display:flex;
+      gap:12px;
+      align-items:center;
+      justify-content:center;
+      flex-wrap:wrap;
+    }
+
+    .btn {
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: none;
+      background: rgba(255,255,255,0.95);
+      cursor: pointer;
+      font-weight: 600;
+      box-shadow: 0 6px 12px rgba(9,12,20,0.12);
+    }
+
+    .btn:active { transform: translateY(1px); }
+
+    .info {
+      margin-top: 12px;
+      font-family: monospace;
+      font-size: 13px;
+      color: rgba(11,18,32,0.9);
+    }
+
+    .range {
+      width: 220px;
+      accent-color: #000000;
+    }
+
+    footer {
+      margin-top:14px;
+      font-size:12px;
+      color: rgba(11,18,32,0.6);
+    }
+
+    @media (max-width:420px){
+      .card { padding:14px; }
+      .range { width: 160px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app" class="app">
+    <div class="card" role="region" aria-live="polite">
+      <h1>RGB Background Changer</h1>
+      <p class="small">Background continuously RGB-style change hota rahega. Speed aur pause kar sakte ho.</p>
+
+      <div class="controls" aria-hidden="false">
+        <button id="toggle" class="btn" aria-pressed="false">Pause</button>
+
+        <label style="display:flex;align-items:center;gap:8px;">
+          <input id="speed" class="range" type="range" min="0.1" max="3" step="0.05" value="1" />
+          <span style="font-size:13px;">Speed</span>
+        </label>
+      </div>
+
+      <div class="info" id="colorText">rgb(0,0,0)</div>
+      <footer>Tip: Inspect karo aur CSS background change karke effect customize kar sakte ho.</footer>
+    </div>
+  </div>
+
+  <script>
+    // Smooth RGB cycling using sine waves with phase offsets
+    (function () {
+      const app = document.getElementById('app');
+      const colorText = document.getElementById('colorText');
+      const toggleBtn = document.getElementById('toggle');
+      const speedInput = document.getElementById('speed');
+
+      // internal time (seconds)
+      let t = 0;
+      let running = true;
+
+      // phase offsets for R,G,B so they cycle differently
+      const phases = {
+        r: 0,
+        g: Math.PI * 2 / 3,
+        b: Math.PI * 4 / 3
+      };
+
+      // convert normalized [-1,1] sine to 0..255
+      function sineToByte(s) {
+        return Math.round(127.5 + 127.5 * s);
+      }
+
+      // main frame
+      function frame(ts) {
+        // ts is milliseconds; we'll use our own t and speed
+        if (running) {
+          const speed = parseFloat(speedInput.value) || 1;
+          // advance time (use 0.001 to convert ms to s)
+          t += 0.016 * speed; // approx 60fps step (smoother than relying on ts)
+        }
+
+        // compute each channel with different phase and a slow base frequency
+        const freq = 0.7; // base frequency (cycles per second)
+        const r = sineToByte(Math.sin(2 * Math.PI * freq * t + phases.r));
+        const g = sineToByte(Math.sin(2 * Math.PI * freq * t + phases.g));
+        const b = sineToByte(Math.sin(2 * Math.PI * freq * t + phases.b));
+
+        const rgb = `rgb(${r}, ${g}, ${b})`;
+
+        // apply as background — use gradient overlay for nicer look
+        app.style.background = `linear-gradient(135deg, ${rgb}, rgba(0,0,0,0.06))`;
+
+        // show current color and update text contrast automatically
+        colorText.textContent = rgb;
+
+        requestAnimationFrame(frame);
+      }
+
+      // start anim
+      requestAnimationFrame(frame);
+
+      // toggle behavior
+      toggleBtn.addEventListener('click', () => {
+        running = !running;
+        toggleBtn.textContent = running ? 'Pause' : 'Play';
+        toggleBtn.setAttribute('aria-pressed', String(!running));
+      });
+
+      // keyboard friendly: space toggles
+      document.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') {
+          e.preventDefault();
+          toggleBtn.click();
+        }
+      });
+
+      // quick click on color text copies value
+      colorText.style.cursor = 'pointer';
+      colorText.title = 'Click to copy color';
+      colorText.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(colorText.textContent);
+          colorText.textContent = colorText.textContent + ' — copied!';
+          setTimeout(() => { colorText.textContent = colorText.textContent.split(' — ')[0]; }, 900);
+        } catch (err) {
+          // ignore clipboard errors
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
